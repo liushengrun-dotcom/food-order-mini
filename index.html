@@ -33,32 +33,51 @@ body{background:#F5F7FA;padding-bottom:80px}
 <body>
 <div class="header">🥩 食材批发下单系统</div>
 <div class="customer">
-<div class="item"><label>客户姓名</label><input id="name" placeholder="Name"></div>
-<div class="item"><label>联系电话</label><input id="phone" placeholder="Phone"></div>
+<div class="item"><label>客户姓名 / Name</label><input id="name" placeholder="请输入姓名"></div>
+<div class="item"><label>联系电话 / Phone</label><input id="phone" placeholder="请输入电话"></div>
 </div>
-<div class="goods" id="list"></div>
+<div class="goods" id="list">
+<div style="text-align:center;padding:40px;color:#999;">正在加载商品数据...</div>
+</div>
 <div class="bottom">
-<div>Total: $<span class="total" id="total">0.00</span></div>
-<button class="submit" onclick="submitOrder()">Submit Order</button>
+<div>合计 / Total: $<span class="total" id="total">0.00</span></div>
+<button class="submit" onclick="submitOrder()">提交订单 / Submit</button>
 </div>
 
 <script>
-// ===================== 每日更新这里的商品数据 =====================
-const goodsData = [
-{code:"30031207",name:"PK Neck Bone 湯骨",price:0.65,stock:166},
-{code:"20023791CW",name:"BF Banana Shank 牛腱",price:5.15,stock:39},
-{code:"60070240CW",name:"Lamb Leg B/L 網羊脾肉",price:6.75,stock:27}
-];
-// =================================================================
+// ===================== 已替换为你的谷歌表格链接 =====================
+const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE/gviz/tq?tqx=out:json&sheet=Sheet1";
+// ====================================================================
 
+let goodsData = [];
 let cart = [];
-window.onload = renderList;
 
-function renderList(){
+window.onload = async function(){
+    await loadGoodsFromGoogleSheet();
+    renderGoods();
+};
+
+async function loadGoodsFromGoogleSheet(){
+    try{
+        const response = await fetch(GOOGLE_SHEET_URL);
+        const text = await response.text();
+        const json = JSON.parse(text.substring(47, text.length-2));
+        goodsData = json.table.rows.map(row => ({
+            code: row.c[0]?.v || "",
+            name: row.c[1]?.v || "",
+            price: row.c[2]?.v || 0,
+            stock: row.c[3]?.v || 0
+        }));
+    }catch(e){
+        document.getElementById("list").innerHTML = `<div style="text-align:center;padding:40px;color:#999;">数据加载失败，请检查谷歌表格链接</div>`;
+    }
+}
+
+function renderGoods(){
 let html = "";
 goodsData.forEach((g,i)=>{
 const st = g.stock<=1 ? "stock-low" : "stock-ok";
-const txt = g.stock<=1 ? "Low Stock" : "In Stock";
+const txt = g.stock<=1 ? "库存紧张/Low Stock" : "库存充足/In Stock";
 html+=`
 <div class="card">
 <div class="name">${g.name}</div>
@@ -94,17 +113,21 @@ document.getElementById("total").innerText = t.toFixed(2);
 function submitOrder(){
 const name = document.getElementById("name").value;
 const phone = document.getElementById("phone").value;
-if(!name||!phone){alert("Please fill in name and phone!");return}
-let order = [["SKU","Name","Price","Qty","Amount"]];
+if(!name||!phone){alert("请填写客户信息！Please fill in your info!");return}
+
+let order = [["物料编码/SKU","商品名称/Name","单价/Price","数量/Qty","金额/Amount"]];
 goodsData.forEach((g,i)=>{
 if(cart[i]>0)order.push([g.code,g.name,g.price,cart[i],(g.price*cart[i]).toFixed(2)]);
 });
-if(order.length==1){alert("Please select items!");return}
+
+if(order.length==1){alert("请选择商品！Please select items!");return}
+
 const wb = XLSX.utils.book_new();
 const ws = XLSX.utils.aoa_to_sheet(order);
-XLSX.utils.book_append_sheet(wb,ws,"Order");
-XLSX.writeFile(wb,`Order_${new Date().getTime()}.xlsx`);
-alert("Order Submitted!");
+XLSX.utils.book_append_sheet(wb,ws,"订单/Order");
+XLSX.writeFile(wb,`订单_${name}_${new Date().getTime()}.xlsx`);
+
+alert("下单成功！订单已导出，可直接对接RPA自动录单！");
 }
 </script>
 </body>
