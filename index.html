@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>食材批发下单系统</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
+body{background:#F5F7FA;padding-bottom:80px}
+.header{position:fixed;top:0;left:0;right:0;height:56px;background:#0F4CDE;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(15,76,222,0.15);z-index:999}
+.customer{margin:66px 12px 12px;background:white;border-radius:16px;padding:16px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
+.item{margin-bottom:12px}
+.item label{font-size:14px;color:#333;font-weight:500;margin-bottom:6px;display:block}
+.item input{width:100%;height:44px;border:1px solid #EAEAEA;border-radius:12px;padding:0 14px;font-size:15px;outline:none}
+.goods{margin:0 12px}
+.card{background:white;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
+.name{font-size:16px;font-weight:600;color:#222;line-height:1.4;margin-bottom:6px}
+.code{font-size:12px;color:#999;margin-bottom:8px}
+.row{display:flex;justify-content:space-between;align-items:center}
+.price{font-size:19px;font-weight:700;color:#FF3B30}
+.stock{font-size:12px;padding:3px 8px;border-radius:6px}
+.stock-ok{background:#E8FBF2;color:#07C160}
+.stock-low{background:#FFC7CE;color:#D80000}
+.ctrl{display:flex;align-items:center;margin-top:12px}
+.btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px;font-size:16px}
+.input{width:50px;height:36px;text-align:center;border:none;background:#F9FAFB;border-radius:10px;margin:0 6px}
+.bottom{position:fixed;left:0;right:0;bottom:0;height:66px;background:white;box-shadow:0 -3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.total{font-size:17px;font-weight:700;color:#333}
+.submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px;font-size:16px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="header">🥩 食材批发下单系统</div>
+<div class="customer">
+<div class="item"><label>客户姓名</label><input id="name" placeholder="Name"></div>
+<div class="item"><label>联系电话</label><input id="phone" placeholder="Phone"></div>
+</div>
+<div class="goods" id="list"></div>
+<div class="bottom">
+<div>Total: $<span class="total" id="total">0.00</span></div>
+<button class="submit" onclick="submitOrder()">Submit Order</button>
+</div>
+
+<script>
+// ===================== 每日更新这里的商品数据 =====================
+const goodsData = [
+{code:"30031207",name:"PK Neck Bone 湯骨",price:0.65,stock:166},
+{code:"20023791CW",name:"BF Banana Shank 牛腱",price:5.15,stock:39},
+{code:"60070240CW",name:"Lamb Leg B/L 網羊脾肉",price:6.75,stock:27}
+];
+// =================================================================
+
+let cart = [];
+window.onload = renderList;
+
+function renderList(){
+let html = "";
+goodsData.forEach((g,i)=>{
+const st = g.stock<=1 ? "stock-low" : "stock-ok";
+const txt = g.stock<=1 ? "Low Stock" : "In Stock";
+html+=`
+<div class="card">
+<div class="name">${g.name}</div>
+<div class="code">SKU: ${g.code}</div>
+<div class="row">
+<span class="price">$${g.price}</span>
+<span class="stock ${st}">${txt}</span>
+</div>
+<div class="ctrl">
+<button class="btn" onclick="setQty(${i},-1)">-</button>
+<input class="input" id="q${i}" value="0" readonly>
+<button class="btn" onclick="setQty(${i},1)">+</button>
+</div>
+</div>`;
+});
+document.getElementById("list").innerHTML = html;
+}
+
+function setQty(i,n){
+let v = +document.getElementById("q"+i).value + n;
+v = v<0?0:v;
+document.getElementById("q"+i).value = v;
+cart[i] = v;
+calcTotal();
+}
+
+function calcTotal(){
+let t = 0;
+goodsData.forEach((g,i)=>{t+=g.price*(cart[i]||0)});
+document.getElementById("total").innerText = t.toFixed(2);
+}
+
+function submitOrder(){
+const name = document.getElementById("name").value;
+const phone = document.getElementById("phone").value;
+if(!name||!phone){alert("Please fill in name and phone!");return}
+let order = [["SKU","Name","Price","Qty","Amount"]];
+goodsData.forEach((g,i)=>{
+if(cart[i]>0)order.push([g.code,g.name,g.price,cart[i],(g.price*cart[i]).toFixed(2)]);
+});
+if(order.length==1){alert("Please select items!");return}
+const wb = XLSX.utils.book_new();
+const ws = XLSX.utils.aoa_to_sheet(order);
+XLSX.utils.book_append_sheet(wb,ws,"Order");
+XLSX.writeFile(wb,`Order_${new Date().getTime()}.xlsx`);
+alert("Order Submitted!");
+}
+</script>
+</body>
+</html>
