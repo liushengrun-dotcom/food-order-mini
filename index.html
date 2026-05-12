@@ -8,19 +8,20 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
 body{background:#F5F7FA;padding-bottom:80px}
-/* 弹窗 */
-.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999}
-.modal-box{background:white;width:90%;max-width:400px;border-radius:20px;padding:20px}
-.modal-title{font-size:18px;font-weight:600;margin-bottom:15px;text-align:center}
-.shop-item{padding:12px;border:1px solid #eee;border-radius:10px;margin-bottom:10px}
-.shop-id{color:#0F4CDE;font-weight:600}
-.shop-name{font-size:16px;margin:5px 0}
-.shop-addr{font-size:12px;color:#666}
-.confirm-btn{width:100%;height:44px;background:#0F4CDE;color:white;border:none;border-radius:12px;margin-top:10px}
-/* 页面样式 */
+/* ID验证弹窗（默认显示，验证通过才隐藏） */
+.verify-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:9999}
+.verify-title{font-size:20px;font-weight:600;margin-bottom:30px;color:#0F4CDE}
+.verify-box{width:100%;max-width:350px}
+.id-input{width:100%;height:46px;border:1px solid #EAEAEA;border-radius:12px;padding:0 16px;font-size:16px;margin-bottom:15px}
+.verify-btn{width:100%;height:46px;background:#0F4CDE;color:white;border:none;border-radius:12px;font-size:16px;margin-bottom:10px}
+.error-tip{color:#FF3B30;font-size:14px;text-align:center;display:none}
+/* 客户信息栏 */
+.customer-info{margin:15px 12px;background:white;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);font-size:14px;color:#333}
+.info-item{margin-bottom:5px}
+.info-label{font-weight:600;color:#0F4CDE}
+/* 商品样式 */
 .header{position:fixed;top:0;left:0;right:0;height:56px;background:#0F4CDE;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(15,76,222,0.15);z-index:999}
-.current-shop{margin:66px 12px 12px;background:white;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);font-size:12px;color:#333}
-.goods{margin:0 12px}
+.goods{margin:0 12px;padding-top:70px}
 .card{background:white;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
 .name{font-size:16px;font-weight:600;color:#222;line-height:1.4;margin-bottom:6px}
 .code{font-size:12px;color:#999;margin-bottom:8px}
@@ -29,129 +30,330 @@ body{background:#F5F7FA;padding-bottom:80px}
 .stock{font-size:12px;padding:3px 8px;border-radius:6px}
 .stock-ok{background:#E8FBF2;color:#07C160}
 .stock-low{background:#FFC7CE;color:#D80000}
-/* 数量区域 */
+/* 数量操作区 */
 .num-box{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
-.num-btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px}
-.num-input{width:60px;height:36px;text-align:center;border:1px solid #eee;border-radius:10px}
+.num-btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px;font-size:16px}
+.num-input{width:60px;height:36px;text-align:center;border:1px solid #eee;border-radius:10px;font-size:15px}
 .quick-btn{padding:0 10px;height:36px;border:none;background:#E8FBF2;color:#07C160;border-radius:10px;font-size:12px}
-/* 底部 */
+/* 底部提交栏 */
 .bottom{position:fixed;left:0;right:0;bottom:0;height:66px;background:white;box-shadow:0 -3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
 .total{font-size:17px;font-weight:700;color:#333}
-.submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px}
+.submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px;font-size:16px}
+/* 加载提示 */
+.loading{text-align:center;padding:40px;color:#999;font-size:14px}
 </style>
 </head>
 <body>
-<!-- 客户选择弹窗 -->
-<div class="modal" id="shopModal">
-    <div class="modal-box">
-        <div class="modal-title">请选择你的餐馆</div>
-        <div class="shop-item" onclick="selectShop('140024','Home Eat汉家宴 - Union City店','33348 Alvarado-Niles Rd, Union City, CA 94587')">
-            <div class="shop-id">ID:140024</div>
-            <div class="shop-name">Home Eat汉家宴 - Union City店</div>
-            <div class="shop-addr">33348 Alvarado-Niles Rd, Union City, CA 94587</div>
-        </div>
-        <!-- 在这里添加你的所有客户列表 -->
+<!-- 1. ID验证弹窗（客户首先看到） -->
+<div class="verify-modal" id="verifyModal">
+    <div class="verify-title">食材批发下单系统</div>
+    <div class="verify-box">
+        <input type="text" class="id-input" id="customerId" placeholder="请输入你的客户ID">
+        <button class="verify-btn" onclick="verifyCustomer()">验证并进入下单</button>
+        <div class="error-tip" id="errorTip">ID不存在，请重新输入！</div>
     </div>
 </div>
 
+<!-- 2. 下单主界面（验证通过后显示） -->
 <div class="header">🥩 食材批发下单系统</div>
-<div class="current-shop" id="currentShop">未选择餐馆</div>
-<div class="goods" id="list">加载中...</div>
-
-<div class="bottom">
+<!-- 客户信息（验证后自动填充） -->
+<div class="customer-info" id="customerInfo" style="display:none">
+    <div class="info-item"><span class="info-label">客户ID：</span><span id="infoId"></span></div>
+    <div class="info-item"><span class="info-label">餐馆名称：</span><span id="infoName"></span></div>
+    <div class="info-item"><span class="info-label">地址：</span><span id="infoAddr"></span></div>
+</div>
+<!-- 商品列表 -->
+<div class="goods" id="goodsList" style="display:none">
+    <div class="loading" id="loading">正在加载商品数据...</div>
+</div>
+<!-- 底部提交 -->
+<div class="bottom" id="submitBar" style="display:none">
     <div>合计: $<span class="total" id="total">0.00</span></div>
     <button class="submit" onclick="submitOrder()">提交订单</button>
 </div>
 
 <script>
-// 配置
-const GOODS_SHEET = "https://docs.google.com/spreadsheets/d/1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE/gviz/tq?tqx=out:json&sheet=Sheet1";
-const ORDER_SHEET = "你的谷歌订单表ID"; // 我帮你填
+// ===================== 已帮你配置好的核心参数 =====================
+// 1. 你的谷歌表格信息（订单表+客户目录表）
+const GOOGLE_SHEET_ID = "1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE"; // 你的谷歌订单表ID
+const GOODS_SHEET_NAME = "Sheet1"; // 商品数据所在工作表（原商品表）
+const CUSTOMER_SHEET_NAME = "客户目录"; // 客户目录所在工作表（新建的）
+const ORDER_SHEET_NAME = "Sheet1"; // 订单存储工作表（可复用原表，也可新建）
 
-let currentShop = {id:"",name:"",addr:""};
-let goodsData = [];
-let cart = [];
+// 2. 全局变量（存储客户信息、商品数据、购物车）
+let currentCustomer = null; // 当前验证通过的客户
+let customerList = []; // 所有客户目录（从谷歌表读取）
+let goodsData = []; // 商品数据（从谷歌表读取）
+// ====================================================================
 
-// 选择餐馆
-function selectShop(id,name,addr){
-    currentShop = {id,name,addr};
-    document.getElementById("shopModal").style.display = "none";
-    document.getElementById("currentShop").innerText = `当前: ${id} | ${name} | ${addr}`;
-}
-
-// 加载商品
-window.onload = async ()=>{
-    const res = await fetch(GOODS_SHEET);
-    const text = await res.text();
-    const json = JSON.parse(text.substring(47, text.length-2));
-    goodsData = json.table.rows.map(row=>({
-        code:row.c[0]?.v||"",name:row.c[1]?.v||"",price:row.c[2]?.v||0,stock:row.c[3]?.v||0
-    }));
-    renderGoods();
+// 页面加载时，先读取客户目录（用于ID验证）
+window.onload = async function() {
+    await loadCustomerList(); // 加载客户目录
 };
 
-// 渲染商品+数量按钮
-function renderGoods(){
-    let html = "";
-    goodsData.forEach((g,i)=>{
-        html+=`
+// 第一步：加载客户目录（从谷歌表格读取）
+async function loadCustomerList() {
+    try {
+        // 拼接谷歌客户目录表的读取链接
+        const customerUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${CUSTOMER_SHEET_NAME}`;
+        const response = await fetch(customerUrl);
+        const text = await response.text();
+        // 解析谷歌表格的JSON格式（去掉前后多余字符）
+        const json = JSON.parse(text.substring(47, text.length - 2));
+        // 提取客户ID、名称、地址（对应A、B、C列）
+        customerList = json.table.rows.map(row => ({
+            id: row.c[0]?.v?.toString() || "", // 客户ID转字符串，避免数字格式问题
+            name: row.c[1]?.v || "", // 餐馆名称
+            addr: row.c[2]?.v || ""  // 地址
+        }));
+    } catch (e) {
+        console.error("加载客户目录失败：", e);
+        alert("系统初始化失败，请刷新页面重试！");
+    }
+}
+
+// 第二步：客户ID验证（核心功能）
+function verifyCustomer() {
+    const inputId = document.getElementById("customerId").value.trim();
+    // 1. 检查输入是否为空
+    if (!inputId) {
+        showErrorTip("请输入客户ID！");
+        return;
+    }
+    // 2. 匹配客户目录中的ID
+    const matchedCustomer = customerList.find(cust => cust.id === inputId);
+    if (!matchedCustomer) {
+        // 3. ID不存在，显示错误提示
+        showErrorTip("ID不存在，请重新输入！");
+        return;
+    }
+    // 4. ID验证通过，存储当前客户信息
+    currentCustomer = matchedCustomer;
+    // 5. 隐藏验证弹窗，显示下单界面
+    document.getElementById("verifyModal").style.display = "none";
+    // 6. 填充客户信息到界面
+    document.getElementById("infoId").innerText = currentCustomer.id;
+    document.getElementById("infoName").innerText = currentCustomer.name;
+    document.getElementById("infoAddr").innerText = currentCustomer.addr;
+    // 7. 显示下单主界面（客户信息、商品列表、提交栏）
+    document.getElementById("customerInfo").style.display = "block";
+    document.getElementById("goodsList").style.display = "block";
+    document.getElementById("submitBar").style.display = "flex";
+    // 8. 加载商品数据（验证通过后才加载，节省资源）
+    loadGoodsData();
+}
+
+// 显示错误提示（ID验证失败时）
+function showErrorTip(text) {
+    const errorTip = document.getElementById("errorTip");
+    errorTip.innerText = text;
+    errorTip.style.display = "block";
+    // 3秒后自动隐藏错误提示
+    setTimeout(() => {
+        errorTip.style.display = "none";
+    }, 3000);
+}
+
+// 第三步：加载商品数据（从谷歌表格读取）
+async function loadGoodsData() {
+    try {
+        // 拼接谷歌商品表的读取链接
+        const goodsUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${GOODS_SHEET_NAME}`;
+        const response = await fetch(goodsUrl);
+        const text = await response.text();
+        // 解析谷歌表格的JSON格式
+        const json = JSON.parse(text.substring(47, text.length - 2));
+        // 提取商品数据（对应A=编码、B=名称、C=价格、D=库存）
+        goodsData = json.table.rows.map(row => ({
+            code: row.c[0]?.v || "", // SKU编码
+            name: row.c[1]?.v || "", // 商品名称
+            price: parseFloat(row.c[2]?.v || 0), // 单价（转数字）
+            stock: parseInt(row.c[3]?.v || 0) // 库存（转整数）
+        }));
+        // 渲染商品列表
+        renderGoodsList();
+    } catch (e) {
+        console.error("加载商品数据失败：", e);
+        document.getElementById("loading").innerText = "商品加载失败，请刷新页面重试！";
+    }
+}
+
+// 第四步：渲染商品列表（带数量操作）
+function renderGoodsList() {
+    const goodsListEl = document.getElementById("goodsList");
+    // 清空加载提示
+    goodsListEl.innerHTML = "";
+    // 遍历商品数据，生成HTML
+    goodsData.forEach((goods, index) => {
+        // 库存状态判断（<=1显示库存紧张，否则显示充足）
+        const stockClass = goods.stock <= 1 ? "stock-low" : "stock-ok";
+        const stockText = goods.stock <= 1 ? "库存紧张" : "库存充足";
+        // 商品卡片HTML
+        const goodsHtml = `
         <div class="card">
-            <div class="name">${g.name}</div>
-            <div class="code">SKU:${g.code}</div>
+            <div class="name">${goods.name}</div>
+            <div class="code">SKU: ${goods.code}</div>
             <div class="row">
-                <span class="price">$${g.price}</span>
-                <span class="stock ${g.stock<2?'stock-low':'stock-ok'}">${g.stock<2?'库存紧张':'库存充足'}</span>
+                <span class="price">$${goods.price.toFixed(2)}</span> <!-- 单价保留2位小数 -->
+                <span class="stock ${stockClass}">${stockText}</span>
             </div>
+            <!-- 数量操作区：-按钮 + 手动输入 + +按钮 + 快捷按钮 -->
             <div class="num-box">
-                <button class="num-btn" onclick="setNum(${i},-1)">-</button>
-                <input class="num-input" id="n${i}" type="number" min="0" value="0" oninput="calc()">
-                <button class="num-btn" onclick="setNum(${i},1)">+</button>
-                <button class="quick-btn" onclick="setQuick(${i},5)">5</button>
-                <button class="quick-btn" onclick="setQuick(${i},10)">10</button>
-                <button class="quick-btn" onclick="setQuick(${i},15)">15</button>
-                <button class="quick-btn" onclick="setQuick(${i},20)">20</button>
-                <button class="quick-btn" onclick="setQuick(${i},25)">25</button>
-                <button class="quick-btn" onclick="setQuick(${i},30)">30</button>
+                <button class="num-btn" onclick="changeQty(${index}, -1)">-</button>
+                <input type="number" class="num-input" id="qty-${index}" value="0" min="0" oninput="calcTotal()">
+                <button class="num-btn" onclick="changeQty(${index}, 1)">+</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 5)">5</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 10)">10</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 15)">15</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 20)">20</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 25)">25</button>
+                <button class="quick-btn" onclick="setQuickQty(${index}, 30)">30</button>
             </div>
         </div>`;
+        // 添加到商品列表
+        goodsListEl.innerHTML += goodsHtml;
     });
-    document.getElementById("list").innerHTML = html;
 }
 
-// 快捷数量
-function setQuick(i,num){
-    document.getElementById(`n${i}`).value = num;
-    calc();
+// 数量增减操作（-/+按钮）
+function changeQty(index, step) {
+    const qtyInput = document.getElementById(`qty-${index}`);
+    let currentQty = parseInt(qtyInput.value) || 0;
+    let newQty = currentQty + step;
+    // 数量不能小于0
+    newQty = newQty < 0 ? 0 : newQty;
+    qtyInput.value = newQty;
+    // 重新计算总价
+    calcTotal();
 }
 
-// 增减数量
-function setNum(i,step){
-    const inp = document.getElementById(`n${i}`);
-    inp.value = Math.max(0, Number(inp.value)+step);
-    calc();
+// 快捷设置数量（5/10/15等按钮）
+function setQuickQty(index, qty) {
+    const qtyInput = document.getElementById(`qty-${index}`);
+    qtyInput.value = qty;
+    // 重新计算总价
+    calcTotal();
 }
 
-// 计算总价
-function calc(){
+// 计算订单总价
+function calcTotal() {
     let total = 0;
-    goodsData.forEach((g,i)=>total += g.price * Number(document.getElementById(`n${i}`).value));
+    goodsData.forEach((goods, index) => {
+        const qty = parseInt(document.getElementById(`qty-${index}`).value) || 0;
+        total += goods.price * qty;
+    });
+    // 总价保留2位小数，显示到界面
     document.getElementById("total").innerText = total.toFixed(2);
 }
 
-// 提交订单→存入谷歌表格
-async function submitOrder(){
-    if(!currentShop.id){alert("请先选择餐馆！");return}
-    let orders = [];
-    goodsData.forEach((g,i)=>{
-        const qty = Number(document.getElementById(`n${i}`).value);
-        if(qty>0) orders.push({...g,qty});
+// 第五步：提交订单（自动同步到谷歌表格）
+async function submitOrder() {
+    // 1. 收集订单商品（只收集数量>0的商品）
+    const orderItems = [];
+    goodsData.forEach((goods, index) => {
+        const qty = parseInt(document.getElementById(`qty-${index}`).value) || 0;
+        if (qty > 0) {
+            orderItems.push({
+                code: goods.code,
+                name: goods.name,
+                price: goods.price,
+                qty: qty,
+                amount: goods.price * qty // 金额
+            });
+        }
     });
-    if(orders.length===0){alert("请选择商品");return}
-
-    // 订单发送到谷歌云端
-    alert("下单成功！订单已同步至后台");
-    location.reload();
+    // 2. 检查是否选择商品
+    if (orderItems.length === 0) {
+        alert("请至少选择一种商品！");
+        return;
+    }
+    // 3. 构造订单数据（包含客户信息+商品信息+下单时间）
+    const orderData = orderItems.map(item => [
+        currentCustomer.id,          // A列：客户ID
+        currentCustomer.name,        // B列：餐馆名称
+        currentCustomer.addr,        // C列：地址
+        item.code,                   // D列：SKU编码
+        item.name,                   // E列：商品名称
+        item.price,                  // F列：单价
+        item.qty,                    // G列：数量
+        item.amount,                 // H列：金额
+        new Date().toLocaleString()  // I列：下单时间（本地时间）
+    ]);
+    // 4. 提交订单到谷歌表格
+    try {
+        await saveOrderToGoogleSheet(orderData);
+        // 5. 提交成功，提示并重置购物车
+        alert("下单成功！订单已同步至后台系统");
+        resetCart();
+    } catch (e) {
+        console.error("提交订单失败：", e);
+        alert("下单失败，请重试！");
+    }
 }
+
+// 保存订单到谷歌表格（核心接口）
+async function saveOrderToGoogleSheet(orderData) {
+    // 谷歌表格API需要通过Google Apps Script实现（免费、简单）
+    // 这里使用简化方案：通过Google Apps Script创建接口，接收订单数据并写入表格
+    // 1. 先创建Google Apps Script（步骤见下文补充）
+    // 2. 替换以下链接为你的Apps Script接口地址
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbxWRg6Irk7dMiOuAzxAFRe3MFBS-YDPIO_IP9Zd_w9M6GVeRdWVUynwgCIa_vwrxCbW-A/exec";
+    
+    // 发送订单数据到接口
+    const response = await fetch(scriptUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            sheetName: ORDER_SHEET_NAME, // 订单存储工作表
+            data: orderData              // 订单数据
+        })
+    });
+    const result = await response.json();
+    if (result.status !== "success") {
+        throw new Error("订单保存失败：" + result.message);
+    }
+}
+
+// 重置购物车（下单成功后）
+function resetCart() {
+    goodsData.forEach((_, index) => {
+        document.getElementById(`qty-${index}`).value = 0;
+    });
+    // 重置总价
+    document.getElementById("total").innerText = "0.00";
+}
+
+// 补充：创建Google Apps Script接口（只做1次）
+// 1. 打开Google Apps Script：https://script.google.com/
+// 2. 新建项目，粘贴以下代码：
+/*
+function doPost(e) {
+    try {
+        // 解析请求数据
+        const data = JSON.parse(e.postData.contents);
+        const sheetName = data.sheetName;
+        const orderData = data.data;
+        
+        // 打开你的谷歌表格
+        const spreadsheet = SpreadsheetApp.openById("1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE");
+        // 选择订单存储工作表
+        const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+        
+        // 找到表格最后一行，在下方插入订单数据
+        const lastRow = sheet.getLastRow();
+        sheet.getRange(lastRow + 1, 1, orderData.length, orderData[0].length).setValues(orderData);
+        
+        // 返回成功响应
+        return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+    } catch (e) {
+        // 返回错误响应
+        return ContentService.createTextOutput(JSON.stringify({status: "error", message: e.message})).setMimeType(ContentService.MimeType.JSON);
+    }
+}
+*/
+// 3. 点击「部署」→ 选择「类型：Web应用」→ 权限设置为「任何人，甚至匿名用户」→ 部署后复制接口URL，替换到上面的scriptUrl
 </script>
 </body>
 </html>
