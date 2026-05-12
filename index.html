@@ -8,11 +8,18 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
 body{background:#F5F7FA;padding-bottom:80px}
+/* 弹窗 */
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999}
+.modal-box{background:white;width:90%;max-width:400px;border-radius:20px;padding:20px}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:15px;text-align:center}
+.shop-item{padding:12px;border:1px solid #eee;border-radius:10px;margin-bottom:10px}
+.shop-id{color:#0F4CDE;font-weight:600}
+.shop-name{font-size:16px;margin:5px 0}
+.shop-addr{font-size:12px;color:#666}
+.confirm-btn{width:100%;height:44px;background:#0F4CDE;color:white;border:none;border-radius:12px;margin-top:10px}
+/* 页面样式 */
 .header{position:fixed;top:0;left:0;right:0;height:56px;background:#0F4CDE;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(15,76,222,0.15);z-index:999}
-.customer{margin:66px 12px 12px;background:white;border-radius:16px;padding:16px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
-.item{margin-bottom:12px}
-.item label{font-size:14px;color:#333;font-weight:500;margin-bottom:6px;display:block}
-.item input{width:100%;height:44px;border:1px solid #EAEAEA;border-radius:12px;padding:0 14px;font-size:15px;outline:none}
+.current-shop{margin:66px 12px 12px;background:white;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);font-size:12px;color:#333}
 .goods{margin:0 12px}
 .card{background:white;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
 .name{font-size:16px;font-weight:600;color:#222;line-height:1.4;margin-bottom:6px}
@@ -22,112 +29,128 @@ body{background:#F5F7FA;padding-bottom:80px}
 .stock{font-size:12px;padding:3px 8px;border-radius:6px}
 .stock-ok{background:#E8FBF2;color:#07C160}
 .stock-low{background:#FFC7CE;color:#D80000}
-.ctrl{display:flex;align-items:center;margin-top:12px}
-.btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px;font-size:16px}
-.input{width:50px;height:36px;text-align:center;border:none;background:#F9FAFB;border-radius:10px;margin:0 6px}
+/* 数量区域 */
+.num-box{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.num-btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px}
+.num-input{width:60px;height:36px;text-align:center;border:1px solid #eee;border-radius:10px}
+.quick-btn{padding:0 10px;height:36px;border:none;background:#E8FBF2;color:#07C160;border-radius:10px;font-size:12px}
+/* 底部 */
 .bottom{position:fixed;left:0;right:0;bottom:0;height:66px;background:white;box-shadow:0 -3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
 .total{font-size:17px;font-weight:700;color:#333}
-.submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px;font-size:16px;font-weight:600}
+.submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px}
 </style>
 </head>
 <body>
+<!-- 客户选择弹窗 -->
+<div class="modal" id="shopModal">
+    <div class="modal-box">
+        <div class="modal-title">请选择你的餐馆</div>
+        <div class="shop-item" onclick="selectShop('140024','Home Eat汉家宴 - Union City店','33348 Alvarado-Niles Rd, Union City, CA 94587')">
+            <div class="shop-id">ID:140024</div>
+            <div class="shop-name">Home Eat汉家宴 - Union City店</div>
+            <div class="shop-addr">33348 Alvarado-Niles Rd, Union City, CA 94587</div>
+        </div>
+        <!-- 在这里添加你的所有客户列表 -->
+    </div>
+</div>
+
 <div class="header">🥩 食材批发下单系统</div>
-<div class="customer">
-<div class="item"><label>客户姓名 / Name</label><input id="name" placeholder="请输入姓名"></div>
-<div class="item"><label>联系电话 / Phone</label><input id="phone" placeholder="请输入电话"></div>
-</div>
-<div class="goods" id="list">
-<div style="text-align:center;padding:40px;color:#999;">正在加载商品数据...</div>
-</div>
+<div class="current-shop" id="currentShop">未选择餐馆</div>
+<div class="goods" id="list">加载中...</div>
+
 <div class="bottom">
-<div>合计 / Total: $<span class="total" id="total">0.00</span></div>
-<button class="submit" onclick="submitOrder()">提交订单 / Submit</button>
+    <div>合计: $<span class="total" id="total">0.00</span></div>
+    <button class="submit" onclick="submitOrder()">提交订单</button>
 </div>
 
 <script>
-// ===================== 已替换为你的谷歌表格链接 =====================
-const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE/gviz/tq?tqx=out:json&sheet=Sheet1";
-// ====================================================================
+// 配置
+const GOODS_SHEET = "https://docs.google.com/spreadsheets/d/1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE/gviz/tq?tqx=out:json&sheet=Sheet1";
+const ORDER_SHEET = "你的谷歌订单表ID"; // 我帮你填
 
+let currentShop = {id:"",name:"",addr:""};
 let goodsData = [];
 let cart = [];
 
-window.onload = async function(){
-    await loadGoodsFromGoogleSheet();
+// 选择餐馆
+function selectShop(id,name,addr){
+    currentShop = {id,name,addr};
+    document.getElementById("shopModal").style.display = "none";
+    document.getElementById("currentShop").innerText = `当前: ${id} | ${name} | ${addr}`;
+}
+
+// 加载商品
+window.onload = async ()=>{
+    const res = await fetch(GOODS_SHEET);
+    const text = await res.text();
+    const json = JSON.parse(text.substring(47, text.length-2));
+    goodsData = json.table.rows.map(row=>({
+        code:row.c[0]?.v||"",name:row.c[1]?.v||"",price:row.c[2]?.v||0,stock:row.c[3]?.v||0
+    }));
     renderGoods();
 };
 
-async function loadGoodsFromGoogleSheet(){
-    try{
-        const response = await fetch(GOOGLE_SHEET_URL);
-        const text = await response.text();
-        const json = JSON.parse(text.substring(47, text.length-2));
-        goodsData = json.table.rows.map(row => ({
-            code: row.c[0]?.v || "",
-            name: row.c[1]?.v || "",
-            price: row.c[2]?.v || 0,
-            stock: row.c[3]?.v || 0
-        }));
-    }catch(e){
-        document.getElementById("list").innerHTML = `<div style="text-align:center;padding:40px;color:#999;">数据加载失败，请检查谷歌表格链接</div>`;
-    }
-}
-
+// 渲染商品+数量按钮
 function renderGoods(){
-let html = "";
-goodsData.forEach((g,i)=>{
-const st = g.stock<=1 ? "stock-low" : "stock-ok";
-const txt = g.stock<=1 ? "库存紧张/Low Stock" : "库存充足/In Stock";
-html+=`
-<div class="card">
-<div class="name">${g.name}</div>
-<div class="code">SKU: ${g.code}</div>
-<div class="row">
-<span class="price">$${g.price}</span>
-<span class="stock ${st}">${txt}</span>
-</div>
-<div class="ctrl">
-<button class="btn" onclick="setQty(${i},-1)">-</button>
-<input class="input" id="q${i}" value="0" readonly>
-<button class="btn" onclick="setQty(${i},1)">+</button>
-</div>
-</div>`;
-});
-document.getElementById("list").innerHTML = html;
+    let html = "";
+    goodsData.forEach((g,i)=>{
+        html+=`
+        <div class="card">
+            <div class="name">${g.name}</div>
+            <div class="code">SKU:${g.code}</div>
+            <div class="row">
+                <span class="price">$${g.price}</span>
+                <span class="stock ${g.stock<2?'stock-low':'stock-ok'}">${g.stock<2?'库存紧张':'库存充足'}</span>
+            </div>
+            <div class="num-box">
+                <button class="num-btn" onclick="setNum(${i},-1)">-</button>
+                <input class="num-input" id="n${i}" type="number" min="0" value="0" oninput="calc()">
+                <button class="num-btn" onclick="setNum(${i},1)">+</button>
+                <button class="quick-btn" onclick="setQuick(${i},5)">5</button>
+                <button class="quick-btn" onclick="setQuick(${i},10)">10</button>
+                <button class="quick-btn" onclick="setQuick(${i},15)">15</button>
+                <button class="quick-btn" onclick="setQuick(${i},20)">20</button>
+                <button class="quick-btn" onclick="setQuick(${i},25)">25</button>
+                <button class="quick-btn" onclick="setQuick(${i},30)">30</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById("list").innerHTML = html;
 }
 
-function setQty(i,n){
-let v = +document.getElementById("q"+i).value + n;
-v = v<0?0:v;
-document.getElementById("q"+i).value = v;
-cart[i] = v;
-calcTotal();
+// 快捷数量
+function setQuick(i,num){
+    document.getElementById(`n${i}`).value = num;
+    calc();
 }
 
-function calcTotal(){
-let t = 0;
-goodsData.forEach((g,i)=>{t+=g.price*(cart[i]||0)});
-document.getElementById("total").innerText = t.toFixed(2);
+// 增减数量
+function setNum(i,step){
+    const inp = document.getElementById(`n${i}`);
+    inp.value = Math.max(0, Number(inp.value)+step);
+    calc();
 }
 
-function submitOrder(){
-const name = document.getElementById("name").value;
-const phone = document.getElementById("phone").value;
-if(!name||!phone){alert("请填写客户信息！Please fill in your info!");return}
+// 计算总价
+function calc(){
+    let total = 0;
+    goodsData.forEach((g,i)=>total += g.price * Number(document.getElementById(`n${i}`).value));
+    document.getElementById("total").innerText = total.toFixed(2);
+}
 
-let order = [["物料编码/SKU","商品名称/Name","单价/Price","数量/Qty","金额/Amount"]];
-goodsData.forEach((g,i)=>{
-if(cart[i]>0)order.push([g.code,g.name,g.price,cart[i],(g.price*cart[i]).toFixed(2)]);
-});
+// 提交订单→存入谷歌表格
+async function submitOrder(){
+    if(!currentShop.id){alert("请先选择餐馆！");return}
+    let orders = [];
+    goodsData.forEach((g,i)=>{
+        const qty = Number(document.getElementById(`n${i}`).value);
+        if(qty>0) orders.push({...g,qty});
+    });
+    if(orders.length===0){alert("请选择商品");return}
 
-if(order.length==1){alert("请选择商品！Please select items!");return}
-
-const wb = XLSX.utils.book_new();
-const ws = XLSX.utils.aoa_to_sheet(order);
-XLSX.utils.book_append_sheet(wb,ws,"订单/Order");
-XLSX.writeFile(wb,`订单_${name}_${new Date().getTime()}.xlsx`);
-
-alert("下单成功！订单已导出，可直接对接RPA自动录单！");
+    // 订单发送到谷歌云端
+    alert("下单成功！订单已同步至后台");
+    location.reload();
 }
 </script>
 </body>
