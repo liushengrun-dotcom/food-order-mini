@@ -252,7 +252,11 @@ async function appendToSheet(sheetName, rows){
     
     const res = await fetch(GAS_URL, {
         method: "POST",
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        // 重點：改成 text/plain，避開預檢請求
+        headers: {
+            "Content-Type": "text/plain"
+        }
     });
     
     const result = await res.json();
