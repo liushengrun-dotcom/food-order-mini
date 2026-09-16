@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-HK">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>食材批发下单系统</title>
+<title>食材批發下單系統</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
 body{background:#F5F7FA;padding-bottom:80px}
@@ -20,126 +20,246 @@ body{background:#F5F7FA;padding-bottom:80px}
 .name{font-size:16px;font-weight:600;color:#222}
 .code{font-size:12px;color:#999;margin:5px 0}
 .price{font-size:19px;font-weight:700;color:#FF3B30}
-.stock{font-size:12px;padding:3px 8px;border-radius:6px;background:#E8FBF2;color:#07C160}
+.price-na{color:#999;font-size:16px}
+.stock{font-size:12px;padding:3px 8px;border-radius:6px;background:#E8FBF2;color:#07C160;margin-left:10px}
+.stock-out{background:#FFC7CE;color:#D80000}
 .num-box{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
 .num-btn{width:36px;height:36px;border:none;background:#F1F3F5;border-radius:10px}
 .num-input{width:60px;height:36px;text-align:center;border:1px solid #eee;border-radius:10px}
+.num-input:disabled{background:#f5f5f5;color:#ccc}
 .quick-btn{padding:0 10px;height:36px;border:none;background:#E8FBF2;color:#07C160;border-radius:10px;font-size:12px}
+.quick-btn:disabled{background:#eee;color:#ccc}
 .bottom{position:fixed;left:0;right:0;bottom:0;height:66px;background:white;box-shadow:0 -3px 10px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
 .total{font-size:17px;font-weight:700}
 .submit{height:44px;padding:0 24px;border:none;background:#FF9500;color:white;border-radius:22px}
+.loading{text-align:center;padding:40px;color:#999}
 </style>
 </head>
 <body>
+<!-- ID驗證彈窗 -->
 <div class="verify-modal" id="verifyModal">
-    <div class="verify-title">食材批发下单系统</div>
+    <div class="verify-title">食材批發下單系統</div>
     <div class="verify-box">
-        <input type="text" class="id-input" id="customerId" placeholder="请输入客户ID">
-        <button class="verify-btn" onclick="checkID()">验证进入</button>
-        <div class="error-tip" id="errTip">ID不存在，请重新输入！</div>
+        <input type="text" class="id-input" id="customerId" placeholder="請輸入客戶ID">
+        <button class="verify-btn" onclick="checkCustomer()">驗證並進入</button>
+        <div class="error-tip" id="errTip">ID不存在，請重新輸入！</div>
     </div>
 </div>
 
-<div class="header">🥩 食材批发下单系统</div>
+<div class="header">🥩 食材批發下單系統</div>
 <div class="customer-info" id="custInfo" style="display:none"></div>
-<div class="goods" id="goodsList" style="display:none"></div>
+<div class="goods" id="goodsList" style="display:none">
+    <div class="loading">正在載入商品資料...</div>
+</div>
 <div class="bottom" id="bottomBar" style="display:none">
-    <div>合计: $<span id="total">0.00</span></div>
-    <button class="submit" onclick="submitOrder()">提交订单</button>
+    <div>合計: $<span id="total">0.00</span></div>
+    <button class="submit" onclick="submitOrder()">提交訂單</button>
 </div>
 
 <script>
-// 你的谷歌表格配置（已填好）
+// ========== 配置區 ==========
 const SHEET_ID = "1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE";
-const CUST_SHEET = "客户目录";
-const GOODS_SHEET = "Sheet1";
+const GOODS_SHEET = "商品總表";
+const ORDER_SHEET = "訂單記錄";
 
-let customerList = [];
-let goodsData = [];
-let currentCust = null;
-
-// 页面加载先读客户列表
-window.onload = async ()=>{
-    await loadCustomerList();
+// 谷歌表格列對應索引 (A=0, B=1, C=2, D=3, E=4, F=5)
+const COL = {
+    CUST_ID: 0,   // A列：客戶ID
+    SKU: 1,       // B列：SKU編碼
+    NAME: 2,      // C列：商品名稱
+    UNIT: 3,      // D列：單位
+    PRICE: 4,     // E列：售價
+    STOCK: 5      // F列：庫存數量
 };
 
-// 读取客户目录（修复匹配逻辑）
-async function loadCustomerList(){
-    let url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${CUST_SHEET}`;
-    let res = await fetch(url);
-    let text = await res.text();
-    let json = JSON.parse(text.substring(47, text.length-2));
-    customerList = json.table.rows.map(row=>({
-        id: (row.c[0]?.v || "").toString().trim(),
-        name: row.c[1]?.v || "",
-        addr: row.c[2]?.v || ""
-    }));
-}
+let currentCustId = "";
+let goodsList = [];
+let orderItems = [];
 
-// 验证ID（修复空格/格式问题）
-function checkID(){
-    let inputID = document.getElementById("customerId").value.trim();
-    let match = customerList.find(c=>c.id === inputID);
-    
-    if(!match){
+// ========== 驗證客戶ID ==========
+function checkCustomer(){
+    const inputId = document.getElementById("customerId").value.trim();
+    if(!inputId){
         document.getElementById("errTip").style.display = "block";
         return;
     }
     
-    currentCust = match;
+    currentCustId = inputId;
     document.getElementById("verifyModal").style.display = "none";
-    document.getElementById("custInfo").innerHTML = `ID:${match.id} | ${match.name} | ${match.addr}`;
     document.getElementById("custInfo").style.display = "block";
+    document.getElementById("custInfo").innerText = "客戶ID：" + inputId;
     document.getElementById("goodsList").style.display = "block";
     document.getElementById("bottomBar").style.display = "flex";
-    loadGoods();
+    
+    loadGoodsByCustomer(inputId);
 }
 
-// 加载商品
-async function loadGoods(){
-    let url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${GOODS_SHEET}`;
-    let res = await fetch(url);
-    let text = await res.text();
-    let json = JSON.parse(text.substring(47, text.length-2));
-    goodsData = json.table.rows.map(row=>({
-        code:row.c[0]?.v||"",name:row.c[1]?.v||"",price:row.c[2]?.v||0,stock:row.c[3]?.v||0
-    }));
-    renderGoods();
+// ========== 按客戶ID載入商品 ==========
+async function loadGoodsByCustomer(custId){
+    try{
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${GOODS_SHEET}`;
+        const res = await fetch(url);
+        const text = await res.text();
+        const json = JSON.parse(text.substring(47, text.length-2));
+        
+        const rows = json.table.rows;
+        goodsList = [];
+        
+        for(let i=0; i<rows.length; i++){
+            const row = rows[i].c;
+            if(!row[COL.CUST_ID]) continue;
+            
+            const id = row[COL.CUST_ID].v + "";
+            if(id === custId){
+                goodsList.push({
+                    sku: row[COL.SKU] ? row[COL.SKU].v + "" : "",
+                    name: row[COL.NAME] ? row[COL.NAME].v + "" : "",
+                    unit: row[COL.UNIT] ? row[COL.UNIT].v + "" : "",
+                    price: row[COL.PRICE] ? parseFloat(row[COL.PRICE].v) || 0 : 0,
+                    stock: row[COL.STOCK] ? parseFloat(row[COL.STOCK].v) || 0 : 0
+                });
+            }
+        }
+        
+        if(goodsList.length === 0){
+            document.getElementById("goodsList").innerHTML = `<div class="loading">查無此客戶的商品資料</div>`;
+            return;
+        }
+        
+        renderGoods();
+    }catch(e){
+        document.getElementById("goodsList").innerHTML = `<div class="loading">商品載入失敗，請稍後再試</div>`;
+        console.error(e);
+    }
 }
 
-// 渲染商品
+// ========== 渲染商品列表 ==========
 function renderGoods(){
     let html = "";
-    goodsData.forEach((g,i)=>{
-        html+=`
+    goodsList.forEach((g, index)=>{
+        const isOut = g.stock <= 0;
+        const priceText = isOut ? "N/A" : "$" + g.price.toFixed(2);
+        const priceClass = isOut ? "price-na" : "";
+        const stockClass = isOut ? "stock-out" : "";
+        const stockText = isOut ? "缺貨" : "庫存充足";
+        const disabled = isOut ? "disabled" : "";
+        
+        html += `
         <div class="card">
             <div class="name">${g.name}</div>
-            <div class="code">SKU:${g.code}</div>
-            <div class="price">$${g.price}</div>
+            <div class="code">SKU：${g.sku} | 單位：${g.unit}</div>
+            <div style="display:flex;align-items:center">
+                <span class="price ${priceClass}">${priceText}</span>
+                <span class="stock ${stockClass}">${stockText}</span>
+            </div>
             <div class="num-box">
-                <button class="num-btn" onclick="setQty(${i},-1)">-</button>
-                <input class="num-input" id="q${i}" type="number" min="0" value="0" oninput="calc()">
-                <button class="num-btn" onclick="setQty(${i},1)">+</button>
-                <button class="quick-btn" onclick="quick(${i},5)">5</button>
-                <button class="quick-btn" onclick="quick(${i},10)">10</button>
-                <button class="quick-btn" onclick="quick(${i},15)">15</button>
-                <button class="quick-btn" onclick="quick(${i},20)">20</button>
+                <button class="num-btn" onclick="changeQty(${index}, -1)" ${disabled}>-</button>
+                <input class="num-input" id="qty_${index}" type="number" min="0" value="0" ${disabled} oninput="calcTotal()">
+                <button class="num-btn" onclick="changeQty(${index}, 1)" ${disabled}>+</button>
+                <button class="quick-btn" onclick="setQty(${index}, 5)" ${disabled}>5</button>
+                <button class="quick-btn" onclick="setQty(${index}, 10)" ${disabled}>10</button>
+                <button class="quick-btn" onclick="setQty(${index}, 15)" ${disabled}>15</button>
+                <button class="quick-btn" onclick="setQty(${index}, 20)" ${disabled}>20</button>
             </div>
         </div>`;
     });
+    
     document.getElementById("goodsList").innerHTML = html;
+    calcTotal();
 }
 
-function setQty(i,n){
-    let v = Math.max(0, +document.getElementById(`q${i}`).value+n);
-    document.getElementById(`q${i}`).value = v; calc();
+function changeQty(index, delta){
+    const input = document.getElementById("qty_" + index);
+    input.value = Math.max(0, parseFloat(input.value) + delta);
+    calcTotal();
 }
-function quick(i,n){ document.getElementById(`q${i}`).value = n; calc(); }
-function calc(){
-    let t=0; goodsData.forEach((g,i)=>t+=g.price* +document.getElementById(`q${i}`).value);
-    document.getElementById("total").innerText = t.toFixed(2);
+
+function setQty(index, num){
+    document.getElementById("qty_" + index).value = num;
+    calcTotal();
 }
-function submitOrder(){ alert("下单成功！订单已同步后台"); }
+
+// ========== 計算總價 ==========
+function calcTotal(){
+    let total = 0;
+    orderItems = [];
+    
+    goodsList.forEach((g, index)=>{
+        const qty = parseFloat(document.getElementById("qty_" + index).value) || 0;
+        if(qty > 0 && g.stock > 0){
+            total += g.price * qty;
+            orderItems.push({
+                sku: g.sku,
+                qty: qty,
+                price: g.price
+            });
+        }
+    });
+    
+    document.getElementById("total").innerText = total.toFixed(2);
+}
+
+// ========== 提交訂單 ==========
+async function submitOrder(){
+    if(orderItems.length === 0){
+        alert("請先選擇商品數量！");
+        return;
+    }
+    
+    if(!confirm("確認提交訂單？")) return;
+    
+    try{
+        const now = new Date();
+        const timeStr = now.getFullYear() + "/" + (now.getMonth()+1) + "/" + now.getDate() + " " + now.getHours() + ":" + now.getMinutes();
+        
+        // 訂單格式：A=SKU, B=數量, C/D/E空白, F=單價, G=客戶ID, H=時間
+        let rows = [];
+        orderItems.forEach(item=>{
+            rows.push([
+                item.sku,
+                item.qty,
+                "", "", "",
+                item.price.toFixed(2),
+                currentCustId,
+                timeStr
+            ]);
+        });
+        
+        await appendToSheet(ORDER_SHEET, rows);
+        alert("✅ 下單成功！訂單已同步後台");
+        
+        // 清空數量
+        goodsList.forEach((_, index)=>{
+            document.getElementById("qty_" + index).value = 0;
+        });
+        calcTotal();
+        
+    }catch(e){
+        alert("❌ 提交失敗，請稍後再試");
+        console.error(e);
+    }
+}
+
+// ========== 寫入谷歌表格 ==========
+async function appendToSheet(sheetName, rows){
+    const GAS_URL = "https://script.google.com/macros/s/AKfycby6AMSBnZ_r-Lb89IGGcqOu_Dh2UCgR5pE4EPmKxu20oJfNTuIETZQ17IuI05gXUNKE/exec";
+    
+    const body = {
+        action: "append",
+        sheetName: sheetName,
+        data: rows
+    };
+    
+    const res = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(body)
+    });
+    
+    const result = await res.json();
+    if(result.status !== "success"){
+        throw new Error(result.message);
+    }
+}
 </script>
 </body>
 </html>
