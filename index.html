@@ -241,29 +241,41 @@ async function submitOrder(){
 }
 
 // ========== 寫入谷歌表格 ==========
-async function appendToSheet(sheetName, rows){
-    const GAS_URL = "https://script.google.com/macros/s/AKfycby6AMSBnZ_r-Lb89IGGcqOu_Dh2UCgR5pE4EPmKxu20oJfNTuIETZQ17IuI05gXUNKE/exec";
-    
-    const body = {
-        action: "append",
-        sheetName: sheetName,
-        data: rows
-    };
-    
-    const res = await fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify(body),
-        // 重點：改成 text/plain，避開預檢請求
-        headers: {
-            "Content-Type": "text/plain"
-        }
+function appendToSheet(sheetName, rows){
+    return new Promise(function(resolve, reject){
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbydsOL0ccBoUFoP2SxVTJmImSms87WpKVOPX-PdzXoK9bDLfh5LLmwKMqNTk4zv6f25/exec"; // 替換成你最新的部署網址
+        
+        const body = {
+            action: "append",
+            sheetName: sheetName,
+            data: rows
+        };
+        
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", GAS_URL, true);
+        xhr.setRequestHeader("Content-Type", "text/plain");
+        
+        xhr.onload = function(){
+            try{
+                const result = JSON.parse(xhr.responseText);
+                if(result.status === "success"){
+                    resolve(result);
+                }else{
+                    reject(new Error(result.message));
+                }
+            }catch(e){
+                reject(new Error("回應格式錯誤"));
+            }
+        };
+        
+        xhr.onerror = function(){
+            reject(new Error("網絡連線失敗"));
+        };
+        
+        xhr.send(JSON.stringify(body));
     });
-    
-    const result = await res.json();
-    if(result.status !== "success"){
-        throw new Error(result.message);
-    }
 }
+
 </script>
 </body>
 </html>
