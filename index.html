@@ -80,7 +80,7 @@ body{background:#F5F7FA;padding-bottom:80px}
     <div class="loading">正在載入商品資料...</div>
 </div>
 <div class="bottom" id="bottomBar" style="display:none">
-    <div>合計: $<span id="total">0.00</span></div>
+    <div>共 <span id="itemCount">0</span> 個品類 / <span id="totalQty">0</span> 件商品</div>
     <button class="submit" onclick="submitOrder()">提交訂單</button>
 </div>
 
@@ -105,7 +105,7 @@ let allGoods = [];
 let showGoods = [];
 let currentCategory = "all";
 let orderItems = [];
-// ===== 新增：全域數量對照表，用SKU儲存，切換分類不丟失 =====
+// 全域數量對照表
 let skuQtyMap = {};
 
 // ========== 驗證客戶ID ==========
@@ -232,7 +232,7 @@ function renderGoods(){
         const stockClass = isOut ? "stock-out" : "";
         const stockText = isOut ? "缺貨" : "庫存充足";
         const disabled = isOut ? "disabled" : "";
-        // 從全域對照表取數量，沒有則為0
+        // 從全域對照表取數量
         const qty = skuQtyMap[g.sku] || 0;
         
         html += `
@@ -263,7 +263,6 @@ function changeQty(sku, delta){
     if(!skuQtyMap[sku]) skuQtyMap[sku] = 0;
     skuQtyMap[sku] = Math.max(0, skuQtyMap[sku] + delta);
     
-    // 更新當前頁面顯示
     const input = document.getElementById("qty_" + sku);
     if(input) input.value = skuQtyMap[sku];
     
@@ -286,15 +285,17 @@ function onQtyInput(sku, value){
     calcTotal();
 }
 
-// ========== 計算總價（以全域數量為準） ==========
+// ========== 計算品類數 & 總件數 ==========
 function calcTotal(){
-    let total = 0;
+    let itemCount = 0;
+    let totalQty = 0;
     orderItems = [];
     
     allGoods.forEach(g=>{
         const qty = skuQtyMap[g.sku] || 0;
         if(qty > 0 && g.stock > 0){
-            total += g.price * qty;
+            itemCount++;
+            totalQty += qty;
             orderItems.push({
                 sku: g.sku,
                 name: g.name,
@@ -304,7 +305,8 @@ function calcTotal(){
         }
     });
     
-    document.getElementById("total").innerText = total.toFixed(2);
+    document.getElementById("itemCount").innerText = itemCount;
+    document.getElementById("totalQty").innerText = totalQty;
 }
 
 // ========== 提交訂單 ==========
@@ -337,7 +339,7 @@ async function submitOrder(){
         await appendToSheet(ORDER_SHEET, rows);
         alert("✅ 下單成功！訂單已同步後台");
         
-        // 提交成功後才清空所有數量
+        // 提交成功後清空
         skuQtyMap = {};
         document.getElementById("searchInput").value = "";
         currentCategory = "all";
