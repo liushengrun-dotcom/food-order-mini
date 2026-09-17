@@ -8,14 +8,24 @@
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
 body{background:#F5F7FA;padding-bottom:80px}
 .verify-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:9999}
-.verify-title{font-size:20px;font-weight:600;margin-bottom:30px;color:#0F4CDE}
+.verify-title{font-size:20px;font-weight:600;margin-bottom:30px;color:#5e88c6}
 .verify-box{width:100%;max-width:350px}
 .id-input{width:100%;height:46px;border:1px solid #EAEAEA;border-radius:12px;padding:0 16px;font-size:16px;margin-bottom:15px}
-.verify-btn{width:100%;height:46px;background:#0F4CDE;color:white;border:none;border-radius:12px;font-size:16px}
+.verify-btn{width:100%;height:46px;background:#5e88c6;color:white;border:none;border-radius:12px;font-size:16px}
 .error-tip{color:#FF3B30;font-size:14px;text-align:center;margin-top:10px;display:none}
 .customer-info{margin:15px 12px;background:white;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);font-size:14px}
-.header{position:fixed;top:0;left:0;right:0;height:56px;background:#0F4CDE;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(15,76,222,0.15);z-index:999}
-.goods{margin:0 12px;padding-top:70px}
+
+/* 表頭顏色已改為 #5e88c6 */
+.header{position:fixed;top:0;left:0;right:0;height:56px;background:#5e88c6;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(94,136,198,0.15);z-index:999}
+
+/* 搜索+分類欄 */
+.toolbar{position:fixed;top:56px;left:0;right:0;background:#fff;padding:10px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);z-index:998}
+.search-box{width:100%;height:38px;border:1px solid #EAEAEA;border-radius:10px;padding:0 12px;font-size:14px;margin-bottom:10px}
+.category-wrap{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.category-btn{flex-shrink:0;padding:6px 14px;border:none;border-radius:20px;background:#F1F3F5;font-size:13px;color:#666}
+.category-btn.active{background:#5e88c6;color:white}
+
+.goods{margin:0 12px;padding-top:130px}
 .card{background:white;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:0 3px 10px rgba(0,0,0,0.05)}
 .name{font-size:16px;font-weight:600;color:#222}
 .code{font-size:12px;color:#999;margin:5px 0}
@@ -47,6 +57,24 @@ body{background:#F5F7FA;padding-bottom:80px}
 </div>
 
 <div class="header">🥩 食材批發下單系統</div>
+
+<!-- 搜索+分類工具欄 -->
+<div class="toolbar" id="toolbar" style="display:none">
+    <input type="text" class="search-box" id="searchInput" placeholder="🔍 搜尋商品名稱..." oninput="filterGoods()">
+    <div class="category-wrap" id="categoryBar">
+        <button class="category-btn active" onclick="setCategory('all')">全部</button>
+        <button class="category-btn" onclick="setCategory('100')">家禽</button>
+        <button class="category-btn" onclick="setCategory('200')">牛</button>
+        <button class="category-btn" onclick="setCategory('300')">豬</button>
+        <button class="category-btn" onclick="setCategory('400')">蝦</button>
+        <button class="category-btn" onclick="setCategory('500')">海鮮</button>
+        <button class="category-btn" onclick="setCategory('600')">雜類</button>
+        <button class="category-btn" onclick="setCategory('700')">蔬果</button>
+        <button class="category-btn" onclick="setCategory('800')">乾貨</button>
+        <button class="category-btn" onclick="setCategory('other')">其他</button>
+    </div>
+</div>
+
 <div class="customer-info" id="custInfo" style="display:none"></div>
 <div class="goods" id="goodsList" style="display:none">
     <div class="loading">正在載入商品資料...</div>
@@ -73,7 +101,9 @@ const COL = {
 };
 
 let currentCustId = "";
-let goodsList = [];
+let allGoods = [];       // 全部商品
+let showGoods = [];      // 篩選後顯示的商品
+let currentCategory = "all";
 let orderItems = [];
 
 // ========== 驗證客戶ID ==========
@@ -86,6 +116,7 @@ function checkCustomer(){
     
     currentCustId = inputId;
     document.getElementById("verifyModal").style.display = "none";
+    document.getElementById("toolbar").style.display = "block";
     document.getElementById("custInfo").style.display = "block";
     document.getElementById("custInfo").innerText = "客戶ID：" + inputId;
     document.getElementById("goodsList").style.display = "block";
@@ -103,7 +134,7 @@ async function loadGoodsByCustomer(custId){
         const json = JSON.parse(text.substring(47, text.length-2));
         
         const rows = json.table.rows;
-        goodsList = [];
+        allGoods = [];
         
         for(let i=0; i<rows.length; i++){
             const row = rows[i].c;
@@ -111,8 +142,10 @@ async function loadGoodsByCustomer(custId){
             
             const id = row[COL.CUST_ID].v + "";
             if(id === custId){
-                goodsList.push({
-                    sku: row[COL.SKU] ? row[COL.SKU].v + "" : "",
+                // 修復SKU顯示：強制轉字串，支援數字+字母格式
+                const skuVal = row[COL.SKU] ? (row[COL.SKU].v ?? row[COL.SKU].f ?? "") : "";
+                allGoods.push({
+                    sku: String(skuVal),
                     name: row[COL.NAME] ? row[COL.NAME].v + "" : "",
                     unit: row[COL.UNIT] ? row[COL.UNIT].v + "" : "",
                     price: row[COL.PRICE] ? parseFloat(row[COL.PRICE].v) || 0 : 0,
@@ -121,22 +154,68 @@ async function loadGoodsByCustomer(custId){
             }
         }
         
-        if(goodsList.length === 0){
+        if(allGoods.length === 0){
             document.getElementById("goodsList").innerHTML = `<div class="loading">查無此客戶的商品資料</div>`;
             return;
         }
         
-        renderGoods();
+        filterGoods();
     }catch(e){
         document.getElementById("goodsList").innerHTML = `<div class="loading">商品載入失敗，請稍後再試</div>`;
         console.error(e);
     }
 }
 
+// ========== 分類切換 ==========
+function setCategory(cat){
+    currentCategory = cat;
+    // 更新按鈕狀態
+    document.querySelectorAll(".category-btn").forEach(btn=>{
+        btn.classList.remove("active");
+    });
+    event.target.classList.add("active");
+    filterGoods();
+}
+
+// ========== 搜索+分類篩選 ==========
+function filterGoods(){
+    const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+    
+    showGoods = allGoods.filter(g=>{
+        // 分類篩選
+        let matchCat = false;
+        const skuHead = g.sku.substring(0,3);
+        
+        if(currentCategory === "all"){
+            matchCat = true;
+        }else if(currentCategory === "other"){
+            matchCat = !["100","200","300","400","500","600","700","800"].includes(skuHead);
+        }else{
+            matchCat = skuHead === currentCategory;
+        }
+        
+        // 搜索篩選
+        let matchSearch = true;
+        if(keyword){
+            matchSearch = g.name.toLowerCase().includes(keyword) || g.sku.toLowerCase().includes(keyword);
+        }
+        
+        return matchCat && matchSearch;
+    });
+    
+    renderGoods();
+    calcTotal();
+}
+
 // ========== 渲染商品列表 ==========
 function renderGoods(){
+    if(showGoods.length === 0){
+        document.getElementById("goodsList").innerHTML = `<div class="loading">沒有符合條件的商品</div>`;
+        return;
+    }
+    
     let html = "";
-    goodsList.forEach((g, index)=>{
+    showGoods.forEach((g, index)=>{
         const isOut = g.stock <= 0;
         const priceText = isOut ? "N/A" : "$" + g.price.toFixed(2);
         const priceClass = isOut ? "price-na" : "";
@@ -165,7 +244,6 @@ function renderGoods(){
     });
     
     document.getElementById("goodsList").innerHTML = html;
-    calcTotal();
 }
 
 function changeQty(index, delta){
@@ -184,12 +262,13 @@ function calcTotal(){
     let total = 0;
     orderItems = [];
     
-    goodsList.forEach((g, index)=>{
+    showGoods.forEach((g, index)=>{
         const qty = parseFloat(document.getElementById("qty_" + index).value) || 0;
         if(qty > 0 && g.stock > 0){
             total += g.price * qty;
             orderItems.push({
                 sku: g.sku,
+                name: g.name,  // 保留商品名稱
                 qty: qty,
                 price: g.price
             });
@@ -212,13 +291,14 @@ async function submitOrder(){
         const now = new Date();
         const timeStr = now.getFullYear() + "/" + (now.getMonth()+1) + "/" + now.getDate() + " " + now.getHours() + ":" + now.getMinutes();
         
-        // 訂單格式：A=SKU, B=數量, C/D/E空白, F=單價, G=客戶ID, H=時間
+        // 訂單格式：A=SKU, B=數量, C=空, D=空, E=商品名稱, F=單價, G=客戶ID, H=時間
         let rows = [];
         orderItems.forEach(item=>{
             rows.push([
                 item.sku,
                 item.qty,
-                "", "", "",
+                "", "",           // C/D 兩個空白欄
+                item.name,        // E列：商品名稱
                 item.price.toFixed(2),
                 currentCustId,
                 timeStr
@@ -229,10 +309,13 @@ async function submitOrder(){
         alert("✅ 下單成功！訂單已同步後台");
         
         // 清空數量
-        goodsList.forEach((_, index)=>{
-            document.getElementById("qty_" + index).value = 0;
+        document.getElementById("searchInput").value = "";
+        currentCategory = "all";
+        document.querySelectorAll(".category-btn").forEach(btn=>{
+            btn.classList.remove("active");
         });
-        calcTotal();
+        document.querySelector(".category-btn").classList.add("active");
+        filterGoods();
         
     }catch(e){
         alert("❌ 提交失敗，請稍後再試");
@@ -243,7 +326,7 @@ async function submitOrder(){
 // ========== 寫入谷歌表格 ==========
 function appendToSheet(sheetName, rows){
     return new Promise(function(resolve, reject){
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbydsOL0ccBoUFoP2SxVTJmImSms87WpKVOPX-PdzXoK9bDLfh5LLmwKMqNTk4zv6f25/exec"; // 替換成你最新的部署網址
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbydsOL0ccBoUFoP2SxVTJmImSms87WpKVOPX-PdzXoK9bDLfh5LLmwKMqNTk4zv6f25/exec";
         
         const body = {
             action: "append",
@@ -275,8 +358,6 @@ function appendToSheet(sheetName, rows){
         xhr.send(JSON.stringify(body));
     });
 }
-
-
 </script>
 </body>
 </html>
