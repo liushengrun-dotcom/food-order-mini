@@ -15,7 +15,7 @@ body{background:#F5F7FA;padding-bottom:80px}
 .error-tip{color:#FF3B30;font-size:14px;text-align:center;margin-top:10px;display:none}
 .customer-info{margin:15px 12px;background:white;border-radius:16px;padding:12px;box-shadow:0 3px 10px rgba(0,0,0,0.05);font-size:14px}
 
-/* 表頭顏色已改為 #5e88c6 */
+/* 表頭顏色 #5e88c6 */
 .header{position:fixed;top:0;left:0;right:0;height:56px;background:#5e88c6;color:white;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;box-shadow:0 2px 10px rgba(94,136,198,0.15);z-index:999}
 
 /* 搜索+分類欄 */
@@ -60,7 +60,7 @@ body{background:#F5F7FA;padding-bottom:80px}
 
 <!-- 搜索+分類工具欄 -->
 <div class="toolbar" id="toolbar" style="display:none">
-    <input type="text" class="search-box" id="searchInput" placeholder="🔍 搜尋商品名稱..." oninput="filterGoods()">
+    <input type="text" class="search-box" id="searchInput" placeholder="🔍 搜尋商品名稱/SKU..." oninput="filterGoods()">
     <div class="category-wrap" id="categoryBar">
         <button class="category-btn active" onclick="setCategory('all')">全部</button>
         <button class="category-btn" onclick="setCategory('100')">家禽</button>
@@ -90,21 +90,23 @@ const SHEET_ID = "1l_x9lmfHW3hWl1KQ642-WciVoHTT6wi2Cttn2VADCpE";
 const GOODS_SHEET = "商品總表";
 const ORDER_SHEET = "訂單記錄";
 
-// 谷歌表格列對應索引 (A=0, B=1, C=2, D=3, E=4, F=5)
+// 谷歌表格列索引 (A=0, B=1, C=2, D=3, E=4, F=5)
 const COL = {
-    CUST_ID: 0,   // A列：客戶ID
-    SKU: 1,       // B列：SKU編碼
-    NAME: 2,      // C列：商品名稱
-    UNIT: 3,      // D列：單位
-    PRICE: 4,     // E列：售價
-    STOCK: 5      // F列：庫存數量
+    CUST_ID: 0,
+    SKU: 1,
+    NAME: 2,
+    UNIT: 3,
+    PRICE: 4,
+    STOCK: 5
 };
 
 let currentCustId = "";
-let allGoods = [];       // 全部商品
-let showGoods = [];      // 篩選後顯示的商品
+let allGoods = [];
+let showGoods = [];
 let currentCategory = "all";
 let orderItems = [];
+// ===== 新增：全域數量對照表，用SKU儲存，切換分類不丟失 =====
+let skuQtyMap = {};
 
 // ========== 驗證客戶ID ==========
 function checkCustomer(){
@@ -141,17 +143,26 @@ async function loadGoodsByCustomer(custId){
             if(!row[COL.CUST_ID]) continue;
             
             const id = row[COL.CUST_ID].v + "";
-            if(id === custId){
-                // 修復SKU顯示：強制轉字串，支援數字+字母格式
-                const skuVal = row[COL.SKU] ? (row[COL.SKU].v ?? row[COL.SKU].f ?? "") : "";
-                allGoods.push({
-                    sku: String(skuVal),
-                    name: row[COL.NAME] ? row[COL.NAME].v + "" : "",
-                    unit: row[COL.UNIT] ? row[COL.UNIT].v + "" : "",
-                    price: row[COL.PRICE] ? parseFloat(row[COL.PRICE].v) || 0 : 0,
-                    stock: row[COL.STOCK] ? parseFloat(row[COL.STOCK].v) || 0 : 0
-                });
+            if(id !== custId) continue;
+            
+            // SKU 取值加強
+            let skuCell = row[COL.SKU];
+            let skuStr = "";
+            if(skuCell){
+                if(skuCell.f){
+                    skuStr = String(skuCell.f).trim();
+                }else if(skuCell.v !== null && skuCell.v !== undefined){
+                    skuStr = String(skuCell.v).trim();
+                }
             }
+            
+            allGoods.push({
+                sku: skuStr,
+                name: row[COL.NAME] ? String(row[COL.NAME].v || "") : "",
+                unit: row[COL.UNIT] ? String(row[COL.UNIT].v || "") : "",
+                price: row[COL.PRICE] ? parseFloat(row[COL.PRICE].v) || 0 : 0,
+                stock: row[COL.STOCK] ? parseFloat(row[COL.STOCK].v) || 0 : 0
+            });
         }
         
         if(allGoods.length === 0){
@@ -169,7 +180,6 @@ async function loadGoodsByCustomer(custId){
 // ========== 分類切換 ==========
 function setCategory(cat){
     currentCategory = cat;
-    // 更新按鈕狀態
     document.querySelectorAll(".category-btn").forEach(btn=>{
         btn.classList.remove("active");
     });
@@ -182,7 +192,7 @@ function filterGoods(){
     const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
     
     showGoods = allGoods.filter(g=>{
-        // 分類篩選
+        // 分類篩選：按 SKU 前3碼
         let matchCat = false;
         const skuHead = g.sku.substring(0,3);
         
@@ -194,7 +204,7 @@ function filterGoods(){
             matchCat = skuHead === currentCategory;
         }
         
-        // 搜索篩選
+        // 搜索篩選：支援名稱、SKU
         let matchSearch = true;
         if(keyword){
             matchSearch = g.name.toLowerCase().includes(keyword) || g.sku.toLowerCase().includes(keyword);
@@ -215,13 +225,15 @@ function renderGoods(){
     }
     
     let html = "";
-    showGoods.forEach((g, index)=>{
+    showGoods.forEach((g)=>{
         const isOut = g.stock <= 0;
         const priceText = isOut ? "N/A" : "$" + g.price.toFixed(2);
         const priceClass = isOut ? "price-na" : "";
         const stockClass = isOut ? "stock-out" : "";
         const stockText = isOut ? "缺貨" : "庫存充足";
         const disabled = isOut ? "disabled" : "";
+        // 從全域對照表取數量，沒有則為0
+        const qty = skuQtyMap[g.sku] || 0;
         
         html += `
         <div class="card">
@@ -232,13 +244,13 @@ function renderGoods(){
                 <span class="stock ${stockClass}">${stockText}</span>
             </div>
             <div class="num-box">
-                <button class="num-btn" onclick="changeQty(${index}, -1)" ${disabled}>-</button>
-                <input class="num-input" id="qty_${index}" type="number" min="0" value="0" ${disabled} oninput="calcTotal()">
-                <button class="num-btn" onclick="changeQty(${index}, 1)" ${disabled}>+</button>
-                <button class="quick-btn" onclick="setQty(${index}, 5)" ${disabled}>5</button>
-                <button class="quick-btn" onclick="setQty(${index}, 10)" ${disabled}>10</button>
-                <button class="quick-btn" onclick="setQty(${index}, 15)" ${disabled}>15</button>
-                <button class="quick-btn" onclick="setQty(${index}, 20)" ${disabled}>20</button>
+                <button class="num-btn" onclick="changeQty('${g.sku}', -1)" ${disabled}>-</button>
+                <input class="num-input" id="qty_${g.sku}" type="number" min="0" value="${qty}" ${disabled} oninput="onQtyInput('${g.sku}', this.value)">
+                <button class="num-btn" onclick="changeQty('${g.sku}', 1)" ${disabled}>+</button>
+                <button class="quick-btn" onclick="setQty('${g.sku}', 5)" ${disabled}>5</button>
+                <button class="quick-btn" onclick="setQty('${g.sku}', 10)" ${disabled}>10</button>
+                <button class="quick-btn" onclick="setQty('${g.sku}', 15)" ${disabled}>15</button>
+                <button class="quick-btn" onclick="setQty('${g.sku}', 20)" ${disabled}>20</button>
             </div>
         </div>`;
     });
@@ -246,29 +258,46 @@ function renderGoods(){
     document.getElementById("goodsList").innerHTML = html;
 }
 
-function changeQty(index, delta){
-    const input = document.getElementById("qty_" + index);
-    input.value = Math.max(0, parseFloat(input.value) + delta);
+// ========== 數量加減 ==========
+function changeQty(sku, delta){
+    if(!skuQtyMap[sku]) skuQtyMap[sku] = 0;
+    skuQtyMap[sku] = Math.max(0, skuQtyMap[sku] + delta);
+    
+    // 更新當前頁面顯示
+    const input = document.getElementById("qty_" + sku);
+    if(input) input.value = skuQtyMap[sku];
+    
     calcTotal();
 }
 
-function setQty(index, num){
-    document.getElementById("qty_" + index).value = num;
+// ========== 快捷設定數量 ==========
+function setQty(sku, num){
+    skuQtyMap[sku] = num;
+    
+    const input = document.getElementById("qty_" + sku);
+    if(input) input.value = num;
+    
     calcTotal();
 }
 
-// ========== 計算總價 ==========
+// ========== 手動輸入數量同步 ==========
+function onQtyInput(sku, value){
+    skuQtyMap[sku] = Math.max(0, parseFloat(value) || 0);
+    calcTotal();
+}
+
+// ========== 計算總價（以全域數量為準） ==========
 function calcTotal(){
     let total = 0;
     orderItems = [];
     
-    showGoods.forEach((g, index)=>{
-        const qty = parseFloat(document.getElementById("qty_" + index).value) || 0;
+    allGoods.forEach(g=>{
+        const qty = skuQtyMap[g.sku] || 0;
         if(qty > 0 && g.stock > 0){
             total += g.price * qty;
             orderItems.push({
                 sku: g.sku,
-                name: g.name,  // 保留商品名稱
+                name: g.name,
                 qty: qty,
                 price: g.price
             });
@@ -297,8 +326,8 @@ async function submitOrder(){
             rows.push([
                 item.sku,
                 item.qty,
-                "", "",           // C/D 兩個空白欄
-                item.name,        // E列：商品名稱
+                "", "",
+                item.name,
                 item.price.toFixed(2),
                 currentCustId,
                 timeStr
@@ -308,7 +337,8 @@ async function submitOrder(){
         await appendToSheet(ORDER_SHEET, rows);
         alert("✅ 下單成功！訂單已同步後台");
         
-        // 清空數量
+        // 提交成功後才清空所有數量
+        skuQtyMap = {};
         document.getElementById("searchInput").value = "";
         currentCategory = "all";
         document.querySelectorAll(".category-btn").forEach(btn=>{
